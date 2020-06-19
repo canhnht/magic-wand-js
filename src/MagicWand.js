@@ -165,6 +165,7 @@ MagicWand = (function () {
     };
   }
   function floodFillWithBorders(image, px, py, colorThreshold, mask, radius) {
+    console.log('floodFillWithBordersssssssss', px, py, colorThreshold);
     var c,
       x,
       newY,
@@ -187,28 +188,46 @@ MagicWand = (function () {
       result = new Uint8Array(mask ? mask : w * h), // result mask
       visited = new Uint8Array(mask ? mask : w * h); // mask of visited points
 
-    console.log('iiiiiiiiiiiiiiii', i);
+    // console.log('iiiiiiiiiiiiiiii', i);
     // console.log('iiiii22222222222', result);
     // console.log('iiiii33333333333', visited);
-    if (visited[i] === 1) {
+    let allVisited = true;
+    for (var dpx = -radius; dpx <= radius; dpx++) {
+      for (var dpy = -radius; dpy <= radius; dpy++) {
+        if (Math.abs(dpx) + Math.abs(dpy) > radius) continue;
+        if (py + dpy < 0 || py + dpy >= h || px + dpx < 0 || px + dpx >= w)
+          continue;
+        var k = (py + dpy) * w + px + dpx;
+        if (visited[k] === 0) {
+          allVisited = false;
+          break;
+        }
+      }
+      if (!allVisited) break;
+    }
+    if (allVisited) {
       return null;
-      // return {
-      //     data: result,
-      //     width: image.width,
-      //     height: image.height,
-      //     bounds: {
-      //         minX: minX,
-      //         minY: minY,
-      //         maxX: maxX,
-      //         maxY: maxY
-      //     }
-      // };
     }
 
     i = i * bytes; // start point index in the image data
     var sampleColor = [data[i], data[i + 1], data[i + 2], data[i + 3]]; // start point color (sample)
 
-    var stack = [{ y: py, left: px - 1, right: px + 1, dir: 1 }]; // first scanning line
+    // var stack = [{ y: py, left: px - 1, right: px + 1, dir: 1 }]; // first scanning line
+    var stack = [];
+    for (var dpx = -radius; dpx <= radius; dpx++) {
+      for (var dpy = -radius; dpy <= radius; dpy++) {
+        if (Math.abs(dpx) + Math.abs(dpy) > radius) continue;
+        if (py + dpy < 0 || py + dpy >= h || px + dpx < 0 || px + dpx >= w)
+          continue;
+        stack.push({
+          y: py + dpy,
+          left: px + dpx - 1,
+          right: px + dpx + 1,
+          dir: 1,
+        });
+      }
+    }
+    console.log('stackkkkkk', stack.length);
     do {
       el = stack.shift(); // get line for scanning
 
@@ -319,6 +338,188 @@ MagicWand = (function () {
       },
     };
   }
+  lib.backgroundFillWithBorders = function (
+    image,
+    px,
+    py,
+    colorThreshold,
+    mask,
+    radius = 20,
+  ) {
+    console.log('backgroundFillWithBordersssss', px, py, colorThreshold);
+    var c,
+      x,
+      newY,
+      el,
+      xr,
+      xl,
+      dy,
+      dyl,
+      dyr,
+      checkY,
+      data = image.data,
+      w = image.width,
+      h = image.height,
+      bytes = image.bytes, // number of bytes in the color
+      maxX = -1,
+      minX = w + 1,
+      maxY = -1,
+      minY = h + 1,
+      i = py * w + px, // start point index in the mask data
+      result = new Uint8Array(mask ? mask : w * h), // result mask
+      visited = new Uint8Array(mask ? mask : w * h); // mask of unvisited points
+
+    console.log('iiiiiiiiiiiiiiii', i, visited[i]);
+    let allVisited = true;
+    for (var dpx = -radius; dpx <= radius; dpx++) {
+      for (var dpy = -radius; dpy <= radius; dpy++) {
+        if (Math.abs(dpx) + Math.abs(dpy) > radius) continue;
+        if (py + dpy < 0 || py + dpy >= h || px + dpx < 0 || px + dpx >= w)
+          continue;
+        var k = (py + dpy) * w + px + dpx;
+        if (visited[k] === 1) {
+          allVisited = false;
+          break;
+        }
+      }
+      if (!allVisited) break;
+    }
+    if (allVisited) {
+      return null;
+    }
+    // if (visited[i] === 0) {
+    //     return null;
+    // }
+
+    i = i * bytes; // start point index in the image data
+    var sampleColor = [data[i], data[i + 1], data[i + 2], data[i + 3]]; // start point color (sample)
+
+    // var stack = [{ y: py, left: px - 1, right: px + 1, dir: 1 }]; // first scanning line
+    var stack = [];
+    for (var dpx = -radius; dpx <= radius; dpx++) {
+      for (var dpy = -radius; dpy <= radius; dpy++) {
+        if (Math.abs(dpx) + Math.abs(dpy) > radius) continue;
+        if (py + dpy < 0 || py + dpy >= h || px + dpx < 0 || px + dpx >= w)
+          continue;
+        stack.push({
+          y: py + dpy,
+          left: px + dpx - 1,
+          right: px + dpx + 1,
+          dir: 1,
+        });
+      }
+    }
+    console.log('stackkkkkk', stack.length);
+    do {
+      el = stack.shift(); // get line for scanning
+
+      checkY = false;
+      for (x = el.left + 1; x < el.right; x++) {
+        dy = el.y * w;
+        i = (dy + x) * bytes; // point index in the image data
+
+        if (visited[dy + x] === 0) continue; // check whether the point has been unvisited
+
+        checkY = true; // if the color of the new point(x,y) is similar to the sample color need to check minmax for Y
+
+        result[dy + x] = 0; // mark a new point in mask
+        visited[dy + x] = 0; // mark a new point as visited
+
+        // console.log('3333333333333', data[i + 3]);
+        // if (data[i + 3] === 0) {    // check by transparent
+        //     continue;
+        // }
+        // compare the color of the sample
+        c = data[i] - sampleColor[0]; // check by red
+        if (c > colorThreshold || c < -colorThreshold) continue;
+        c = data[i + 1] - sampleColor[1]; // check by green
+        if (c > colorThreshold || c < -colorThreshold) continue;
+        c = data[i + 2] - sampleColor[2]; // check by blue
+        if (c > colorThreshold || c < -colorThreshold) continue;
+
+        xl = x - 1;
+        // walk to left side starting with the left neighbor
+        while (xl > -1) {
+          dyl = dy + xl;
+          i = dyl * bytes; // point index in the image data
+          if (visited[dyl] === 0) break; // check whether the point has been unvisited
+
+          result[dyl] = 0;
+          visited[dyl] = 0;
+          xl--;
+
+          // if (data[i + 3] === 0) {    // check by transparent
+          //     break;
+          // }
+          // compare the color of the sample
+          c = data[i] - sampleColor[0]; // check by red
+          if (c > colorThreshold || c < -colorThreshold) break;
+          c = data[i + 1] - sampleColor[1]; // check by green
+          if (c > colorThreshold || c < -colorThreshold) break;
+          c = data[i + 2] - sampleColor[2]; // check by blue
+          if (c > colorThreshold || c < -colorThreshold) break;
+        }
+        xr = x + 1;
+        // walk to right side starting with the right neighbor
+        while (xr < w) {
+          dyr = dy + xr;
+          i = dyr * bytes; // index point in the image data
+          if (visited[dyr] === 0) break; // check whether the point has been unvisited
+
+          result[dyr] = 0;
+          visited[dyr] = 0;
+          xr++;
+
+          // if (data[i + 3] === 0) {    // check by transparent
+          //     break;
+          // }
+          // compare the color of the sample
+          c = data[i] - sampleColor[0]; // check by red
+          if (c > colorThreshold || c < -colorThreshold) break;
+          c = data[i + 1] - sampleColor[1]; // check by green
+          if (c > colorThreshold || c < -colorThreshold) break;
+          c = data[i + 2] - sampleColor[2]; // check by blue
+          if (c > colorThreshold || c < -colorThreshold) break;
+        }
+
+        // check minmax for X
+        if (xl < minX) minX = xl + 1;
+        if (xr > maxX) maxX = xr - 1;
+
+        newY = el.y - el.dir;
+        if (newY >= 0 && newY < h) {
+          // add two scanning lines in the opposite direction (y - dir) if necessary
+          if (xl < el.left)
+            stack.push({ y: newY, left: xl, right: el.left, dir: -el.dir }); // from "new left" to "current left"
+          if (el.right < xr)
+            stack.push({ y: newY, left: el.right, right: xr, dir: -el.dir }); // from "current right" to "new right"
+        }
+        newY = el.y + el.dir;
+        if (newY >= 0 && newY < h) {
+          // add the scanning line in the direction (y + dir) if necessary
+          if (xl < xr)
+            stack.push({ y: newY, left: xl, right: xr, dir: el.dir }); // from "new left" to "new right"
+        }
+      }
+      // check minmax for Y if necessary
+      if (checkY) {
+        if (el.y < minY) minY = el.y;
+        if (el.y > maxY) maxY = el.y;
+      }
+    } while (stack.length > 0);
+
+    return {
+      data: result,
+      width: image.width,
+      height: image.height,
+      bounds: {
+        minX: minX,
+        minY: minY,
+        maxX: maxX,
+        maxY: maxY,
+      },
+    };
+  };
   /** Apply the gauss-blur filter to binary mask
    * Algorithms: http://blog.ivank.net/fastest-gaussian-blur.html
    * http://www.librow.com/articles/article-9
@@ -707,7 +908,8 @@ MagicWand = (function () {
    * @param {Object} mask: {Uint8Array} data, {int} width, {int} height
    * @return {Array} border index array boundary points of the mask
    */
-  lib.getBorderIndices = function (mask) {
+  lib.getBorderIndices = function (mask, mainColor = 1) {
+    console.log('getBorderIndicessssssssss', mainColor);
     var x,
       y,
       k,
@@ -720,26 +922,60 @@ MagicWand = (function () {
       x1 = w - 1,
       y1 = h - 1;
 
-    for (y = 0; y < h; y++)
-      for (x = 0; x < w; x++) {
-        k = y * w + x;
-        if (data[k] === 1) continue; // "black" point isn't the border
-        k1 = k + w; // y + 1
-        k2 = k - w; // y - 1
-        // check if any neighbor with a "white" color
-        const count =
-          data[k + 1] +
-          data[k - 1] +
-          data[k1] +
-          data[k1 + 1] +
-          data[k1 - 1] +
-          data[k2] +
-          data[k2 + 1] +
-          data[k2 - 1];
-        if (count >= 3) {
-          data[k] = 1;
+    // if (mainColor === 0) {
+    //     for (y = 0; y < h; y++)
+    //         for (x = 0; x < w; x++) {
+    //             k = y * w + x;
+    //             if (data[k] === 1) continue; // "black" point isn't the border
+    //             k1 = k + w; // y + 1
+    //             k2 = k - w; // y - 1
+    //             // check if any neighbor with a "white" color
+    //             const count = data[k + 1] + data[k - 1] + data[k1] + data[k1 + 1] + data[k1 - 1] + data[k2] + data[k2 + 1] + data[k2 - 1];
+    //             if (count >= 3) {
+    //                 data[k] = 1;
+    //             }
+    //         }
+    // } else if (mainColor === 1) {
+    //     for (y = 0; y < h; y++)
+    //         for (x = 0; x < w; x++) {
+    //             k = y * w + x;
+    //             if (data[k] === 1) continue; // "black" point isn't the border
+    //             k1 = k + w; // y + 1
+    //             k2 = k - w; // y - 1
+    //             // check if any neighbor with a "white" color
+    //             const count = data[k + 1] + data[k - 1] + data[k1] + data[k1 + 1] + data[k1 - 1] + data[k2] + data[k2 + 1] + data[k2 - 1];
+    //             if (count >= 3) {
+    //                 data[k] = 1;
+    //             }
+    //         }
+    // }
+    var newMarks;
+    var threshold = 4;
+    do {
+      threshold += 1;
+      newMarks = 0;
+      for (y = 0; y < h; y++)
+        for (x = 0; x < w; x++) {
+          k = y * w + x;
+          if (data[k] === mainColor) continue; // "black" point isn't the border
+          k1 = k + w; // y + 1
+          k2 = k - w; // y - 1
+          // check if any neighbor with a "white" color
+          var count = 0;
+          count += 1 * (data[k + 1] === mainColor);
+          count += 1 * (data[k - 1] === mainColor);
+          count += 1 * (data[k1] === mainColor);
+          count += 1 * (data[k1 + 1] === mainColor);
+          count += 1 * (data[k1 - 1] === mainColor);
+          count += 1 * (data[k2] === mainColor);
+          count += 1 * (data[k2 + 1] === mainColor);
+          count += 1 * (data[k2 - 1] === mainColor);
+          if (count >= threshold) {
+            data[k] = mainColor;
+            newMarks += 1;
+          }
         }
-      }
+    } while (newMarks > 0);
 
     // walk through inner values except points on the boundary of the image
     for (y = 1; y < y1; y++)
